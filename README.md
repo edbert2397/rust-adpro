@@ -66,3 +66,73 @@ let (status_line, filename) = match &request_line[..] {
     };
 ```
 - Menambahkan delay 10 detik untuk program bekerja kembali sehingga menyebabkan program tidak dapat menangani banyak concurrent request karena program tersebut single threaded
+
+# Commit 5 Reflection notes
+- Menambahkan struct dan implementasi ThreadPool pada lib.rs
+```
+pub struct ThreadPool {
+    workers: Vec<Worker>,
+    sender: mpsc::Sender<Job>,
+}
+
+type Job = Box<dyn FnOnce() + Send + 'static>;
+
+impl ThreadPool {
+    pub fn new(size: usize) -> ThreadPool {
+        assert!(size > 0);
+
+        let (sender, receiver) = mpsc::channel();
+        let receiver = Arc::new(Mutex::new(receiver));
+
+        let mut workers = Vec::with_capacity(size);
+
+        for id in 0..size {
+            workers.push(Worker::new(id, Arc::clone(&receiver)));
+        }
+
+        ThreadPool { workers, sender }
+    }
+    pub fn execute<F>(&self, f: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        let job = Box::new(f);
+        self.sender.send(job).unwrap();
+    }
+}
+```
+- Menambahkan struct dan implementasi Worker (sejumlah ukuran ThreadPool) pada lib.rs
+```
+struct Worker {
+    id: usize,
+    thread: thread::JoinHandle<()>,
+}
+
+impl Worker {
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+        let thread = thread::spawn(move || loop {
+            let job = receiver.lock().unwrap().recv().unwrap();
+            println!("Worker {id} got a job; executing.");
+            job();
+        });
+        Worker { id, thread }
+    }
+}
+```
+
+- Menambahkan for loop untuk execute pool pada main.rs
+```
+ let pool = ThreadPool::new(4);
+    for stream in listener.incoming() {
+        let stream = stream.unwrap();
+
+        pool.execute(|| {
+            handle_connection(stream);
+        });
+    }
+```
+-Ketika metode execute pada ThreadPool dipanggil dengan sebuah tugas khusus, tugas tersebut dibungkus ke dalam sebuah Job dan selanjutnya dikirim melalui Sender. satu thread worker yang tersedia akan mendapatkan tugas tersebut melalui Receiver.
+
+-Setelah thread worker mendapatkan tugas, kita melakukan lock pada receiver untuk mendapatkan mutex. Kemudian, kita memanggil recv untuk menerima Job. Jika belum ada tugas yang tersedia, pemanggilan ke recv akan terblokir, dan thread tersebut akan menunggu sampai ada tugas yang tersedia. Mutex memastikan bahwa hanya satu thread Worker pada satu waktu yang melakukan pekerjaan.
+
+-Setelah tugas tersebut selesai dijalankan, thread worker akan kembali ke dalam loop dan menunggu tugas berikutnya.
