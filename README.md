@@ -30,6 +30,7 @@
         <p>Sorry, I don't know what you're asking for.</p>
     </body>
 </html>
+```
 
 - mengubah code pada handle_connection sehingga memunculkan 404.html jika page tidak dikenal
 ```
