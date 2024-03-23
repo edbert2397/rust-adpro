@@ -55,3 +55,14 @@ fn handle_connection(mut stream: TcpStream) {
 - mengecek apakah request nya itu GET request yang valid. Jika iya, maka statusnya adalah 200 OK dan file "hello.html", jika tidak maka statusnya adalah 404 Not Found dan file "404.html"
 - Stream.write_all akan menkonversi ke bentuk bytes dan mengembalikan ke TCP. Jika error, maka unwrap() akan panic() dan program terhenti
 ![Commit 3](/images/commit3.png)
+
+# 4 Commit 4 reflection notes
+- edit fungsi handle_connection dengan tambahan code ini
+```
+let (status_line, filename) = match &request_line[..] {
+        "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "hello.html"), "GET /sleep HTTP/1.1" => {
+        thread::sleep(Duration::from_secs(10)); ("HTTP/1.1 200 OK", "hello.html") }
+        _ => ("HTTP/1.1 404 NOT FOUND", "404.html"),
+    };
+```
+- Menambahkan delay 10 detik untuk program bekerja kembali sehingga menyebabkan program tidak dapat menangani banyak concurrent request karena program tersebut single threaded
